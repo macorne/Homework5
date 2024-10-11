@@ -1,0 +1,346 @@
+---
+title: "Homework5"
+author: "Matthew Corne"
+date: "10-11-24"
+format: html
+editor: visual
+---
+
+## Task 1:  Read in the Data and Modify
+
+*  Using provided `student-merge.R` code
+
+```{r}
+#Read in the math data
+math_data <- read.table("student-mat.csv",sep=";",header=TRUE)
+#Read in the Portuguese data
+port_data <- read.table("student-por.csv",sep=";",header=TRUE)
+#Merge the data sets
+comb_data <- merge(math_data,port_data,by=c("school","sex","age","address","famsize","Pstatus","Medu","Fedu","Mjob","Fjob","reason","nursery","internet"))
+
+print(nrow(comb_data)) # 382 students
+
+```
+
+* Using `tidyverse`
+
+```{r}
+library(tidyverse)
+library(stringr)
+#Can use read_csv2 but encounter a complaint and recommendation to use read_delim
+
+#Read in the math data
+math_data <- read_delim("student-mat.csv",delim=";",col_names=TRUE)
+#Read in the Portuguese data
+port_data <- read_delim("student-por.csv",delim=";",col_names=TRUE)
+#Merge the data sets
+comb_data <- inner_join(math_data,port_data,by=c("school","sex","age","address","famsize","Pstatus","Medu","Fedu","Mjob","Fjob","reason","nursery","internet")) #Get a many-to-many relationship warning (looks like the same variable names with .x, .y) for Row 79
+
+```
+
+To avoid the warning, we use an inner_join() on all variables other than G1, G2, G3, paid, and absences. We will use this form of the combined data in further exercises.
+
+```{r}
+comb_data <- inner_join(math_data,port_data,by=c("school","sex","age","address","famsize","Pstatus","Medu","Fedu","Mjob","Fjob","reason","guardian","traveltime","studytime","failures","schoolsup","famsup","activities","nursery","higher","internet","romantic","famrel","freetime","goout","Dalc","Walc","health"))
+
+```
+
+For the math data, Portuguese, and combined data, we will look at sex, address, mother's education, and father's education.  We convert these into factor variables in each tibble (use the same four variables in each) using `mutate`.
+
+```{r}
+#sex, address, Medu, Fedu
+math_data <- math_data |> mutate(sex = factor(sex, levels=c("F","M"), labels=c("Female","Male")), address = factor(address, levels=c("U","R"), labels=c("Urban","Rural")), Medu = factor(Medu, levels=c(0,1,2,3,4), labels=c("none", "primary education (4th grade)", "5th to 9th grade", "secondary education", "higher education")), Fedu = factor(Fedu, levels=c(0,1,2,3,4), labels=c("none", "primary education (4th grade)", "5th to 9th grade", "secondary education", "higher education")))
+port_data <- port_data |> mutate(sex = factor(sex, levels=c("F","M"), labels=c("Female","Male")), address = factor(address, levels=c("U","R"), labels=c("Urban","Rural")), Medu = factor(Medu, levels=c(0,1,2,3,4), labels=c("none", "primary education (4th grade)", "5th to 9th grade", "secondary education", "higher education")), Fedu = factor(Fedu, levels=c(0,1,2,3,4), labels=c("none", "primary education (4th grade)", "5th to 9th grade", "secondary education", "higher education")))
+comb_data <- comb_data |> mutate(sex = factor(sex, levels=c("F","M"), labels=c("Female","Male")), address = factor(address, levels=c("U","R"), labels=c("Urban","Rural")), Medu = factor(Medu, levels=c(0,1,2,3,4), labels=c("none", "primary education (4th grade)", "5th to 9th grade", "secondary education", "higher education")), Fedu = factor(Fedu, levels=c(0,1,2,3,4), labels=c("none", "primary education (4th grade)", "5th to 9th grade", "secondary education", "higher education")))
+
+```
+## Task 2:  Summarize the Data (Very Basic EDA)
+
+For the combined data, we will
+
+* look at how the data is stored and see if everything makes sense
+* document the missing values in the data
+
+```{r}
+comb_data
+
+```
+
+The data looks good except that some of the column names have `.x` or `.y`.  We will change these to `_math` and `_port`, respectively, to better reflect which data set they represent.
+
+```{r}
+names(comb_data) <- str_replace(names(comb_data), "[.]x", "_math")
+names(comb_data) <- str_replace(names(comb_data), "[.]y", "_port")
+```
+
+We check for missing data:
+
+```{r}
+colSums(is.na(comb_data))
+
+```
+No missing values appear.
+
+
+### Categorical variables
+* Using `table()`, we will create a one-way contingency table, a two-way contingency table, and a three-way contingency table using the factor variables `Medu` (all), `Fedu` (two-way and three-way), and `address` (three-way).
+  + After this, we will interpret a number from each resulting table (that is, pick out a value produced and explain what that value means).
+  
+  
+#### One-way contingency table using the Medu factor variable
+  
+```{r}
+table(comb_data$Medu,dnn=list("Medu"))
+
+```
+123 of the students' mothers completed higher education.
+
+
+#### Two-way contingency table using the Medu and Fedu factor variables
+
+```{r}
+table(comb_data$Medu, comb_data$Fedu, dnn=list("Medu","Fedu"))
+
+```
+66 students had both mothers and fathers who completed higher education.
+
+
+#### Three-way contingency table
+
+```{r}
+table(comb_data$Medu, comb_data$Fedu, comb_data$address,dnn=list("Medu","Fedu","address"))
+
+```
+12 students with rural addresses had both mothers and fathers who completed higher education.
+
+  
+* We will create a conditional two-way table using `table()`, conditioning on `address`.  We will do this by
+  + subsetting the data (say with `filter()`), then creating the two-way table
+  + creating a three-way table, then subsetting it
+  
+```{r}
+comb_data_1 <- comb_data |> filter(address == "Urban")
+table(comb_data_1$Medu, comb_data_1$Fedu,dnn=list("Medu","Fedu"))
+```
+This is the same as the "Urban" table above.  We see that 1 urban student has a mother who completed higher education but a father who completed no education.
+
+```{r}
+comb_data_2 <- table(comb_data$Medu, comb_data$Fedu, comb_data$address,dnn=list("Medu","Fedu","address"))
+comb_data_2[ , , "Urban"]
+```
+This is the same "Urban" table as above.  We see that 4 urban students had fathers who completed higher education but mothers who only completed 5th to 9th grade.
+
+
+* We will create a two-way contingency table using group_by() on the factor variables sex and Medu.  Then, we will use summarize() (getting the count) from dplyr. Finally, we will use pivot_wider() to make the result look more like the output from table().
+
+```{r}
+comb_data_3 <- comb_data |> group_by(sex, Medu) |> summarize(count=n()) |> pivot_wider(names_from = Medu, values_from = "count")
+comb_data_3
+```
+57 female students have mothers who completed higher education.
+
+
+* Create a stacked bar graph and a side-by-side bar graph. Give relevant `x` and `y` labels, and a title for the plots.
+
+```{r}
+#Stacked bar graph
+g <- ggplot(data = comb_data |> drop_na(sex, Fedu), aes(x = sex, fill = Fedu))
+g + geom_bar()+
+ labs(x = "Sex", title = "Counts of Fathers by Students' Genders in Two Portuguese Schools", fill = "Fathers' Educational Attainment")+
+  scale_fill_discrete("Fathers' Educational Attainment")
+```
+
+```{r}
+#Side-by-side bar graph
+g <- ggplot(data = comb_data |> drop_na(sex, Fedu), aes(x = sex, fill = Fedu))
+g+geom_bar(position = "dodge") +
+ labs(x = "Sex", title = "Counts of Fathers by Students' Genders in Two Portuguese Schools", fill = "Fathers' Educational Attainment")+
+ scale_fill_discrete("Fathers' Educational Attainment")
+```
+There are more female than male students (faster seen in the first bar chart!), and all of the female students' fathers completed some amount of education.
+
+
+### Numeric variables (and across groups)
+
+The numeric variables are age, absences, and the three test grades variables (G1, G2, and G3) from each data set (math and Portuguese).
+
+* We will find measures of center and spread for age, absences_math, and G3_math.
+  
+```{r}
+comb_data_cs <- comb_data |> summarize(across(c(age,absences_math,G3_math),
+                   list("mean" = mean, "median" = median, "st_dev" = sd, "variance" = var, "IQR" = IQR), 
+                   .names = "{.fn}_{.col}"))
+
+
+comb_data_cs
+```
+The 75th percentile score on the final math exam was 16/20, while the 25th percentile score was 6/20.
+
+
+  + Subset by those who want to take higher education
+  
+```{r}
+# cs = center spread
+comb_data_cs_subset <- comb_data |> filter(higher == "yes") |> summarize(across(c(age,absences_math,G3_math),
+                   list("mean" = mean, "median" = median, "st_dev" = sd, "variance" = var, "IQR" = IQR), 
+                   .names = "{.fn}_{.col}"))
+
+comb_data_cs_subset
+```
+For those students who want to undertake higher education, their Q1, median, and Q3 scores are the same as for the whole class.
+
+  
+* We will find measures of center and spread, grouping across address, for age, absences_math, and G3_math.
+
+```{r}
+# csg1 = center spread (1 grouping variable)
+comb_data_csg1 <- comb_data |> group_by(address) |> summarize(across(c(age,absences_math,G3_math),
+                   list("mean" = mean, "median" = median, "st_dev" = sd, "variance" = var, "IQR" = IQR), 
+                   .names = "{.fn}_{.col}"))
+
+comb_data_csg1
+```
+The rural students have the same median absences as the urban students but greater mean absences, suggesting a skewed distribution:  there are some rural students who miss a lot more of the classes than the urban students.
+
+
+* Next, we find measures of center and spread across sex and address for age, absences_math, and G3_math.
+
+```{r}
+# csg2 = center spread (2 grouping variables)
+comb_data_csg2 <- comb_data |> group_by(sex, address) |> drop_na(sex, address) |> summarize(across(c(age,absences_math,G3_math),
+                   list("mean" = mean, "median" = median, "st_dev" = sd, "variance" = var, "IQR" = IQR), 
+                   .names = "{.fn}_{.col}"))
+
+comb_data_csg2
+```
+There is more of a disparity in the median G3_math scores among urban females and males than among rural females and males.  The rural students' median ages are one year greater than the urban students' ages.
+
+
+* We will create a correlation matrix between the numeric variables age, absences_math, absences_port, G1-G3 (math) and G1-G3 (port).
+
+```{r}
+comb_data_subset <- comb_data |> select(age,absences_math,absences_port,G1_math,G2_math,G3_math,G1_port,G2_port,G3_port)
+cor(comb_data_subset)
+```
+The strongest positive correlations are between the test scores within a subject.  This is perhaps not surprising, assuming that the instructor is the same and the instructional methodology is uniform.  (The may be very big assumptions.) There is a slight positive correlation between absences and age, more noticeable for math than for Portuguese but not anywhere near the threshold to consider a strong relationship.  There are weak negative correlations between test scores and age, except for `G2_port` (though this result could be due to outliers).
+
+
+* We will create a histogram, kernel density plot, and boxplot for `G3_math` and `G3_port` across `address`.
+
+```{r}
+# Histogram
+ghm <- ggplot(comb_data, aes(x = G3_math))
+ghm + geom_histogram(aes(fill = address, col=I("black")),position = "identity",binwidth=1) + scale_fill_manual(values=c("#E69F00", "#56B4E9")) + xlab("Score on Final Math Exam, G3") + ylab("Number of Students") + ggtitle(str_wrap("Number of Students Who Achieved Score on Final Math Exam, by Address",45)) + theme(plot.title = element_text(hjust = 0.5))
+
+ghp <- ggplot(comb_data, aes(x = G3_port))
+ghp + geom_histogram(aes(fill = address, col=I("black")),position = "identity",binwidth=1) + scale_fill_manual(values=c("#E69F00", "#56B4E9")) + xlab("Score on Final Portuguese Exam, G3") + ylab("Number of Students") + ggtitle(str_wrap("Number of Students Who Achieved Score on Final Portuguese Exam, by Address",45)) + theme(plot.title = element_text(hjust = 0.5))
+
+#ghm <- ggplot(comb_data) +
+# geom_histogram(aes(x = G3_math, fill = address)) +
+# geom_histogram(aes(x = G3_port, fill = address), alpha = 0.5)
+#ghm
+```
+For the final math exam, aside from the number of students who scored 0, the distribution for the rural students looks normal and centered around a score of 10.  The distribution for the urban students looks slightly bimodal.  If we include the scores of 0, the urban distribution would be slightly left-skewed, which we can corroborate with our table above with measures of center and spread.  For the final Portuguese exam, the distributions both appear left-skewed.  
+
+
+```{r}
+# Kernel Density Plot
+gkdm <- ggplot(comb_data, aes(x = G3_math))
+gkdm + geom_density(alpha = 0.5, aes(fill = address, col=I("black"))) + scale_fill_manual(values=c("#E69F00", "#56B4E9")) + xlab("Score on Final Math Exam, G3") + ylab("Density of Students") + ggtitle(str_wrap("Density of Students Who Achieved Score on Final Math Exam, by Address",45)) + theme(plot.title = element_text(hjust = 0.5))
+
+gkdp <- ggplot(comb_data, aes(x = G3_port))
+gkdp + geom_density(alpha = 0.5, aes(fill = address, col=I("black"))) + scale_fill_manual(values=c("#E69F00", "#56B4E9")) + xlab("Score on Final Portuguese Exam, G3") + ylab("Density of Students") + ggtitle(str_wrap("Density of Students Who Achieved Score on Final Portuguese Exam, by Address",45)) + theme(plot.title = element_text(hjust = 0.5))
+
+#gkd <- ggplot(comb_data) +
+#  geom_density(aes(x = G3_math, fill = address)) +
+#  geom_density(aes(x = G3_port, fill = address), alpha = 0.5)
+#gkd
+
+```
+The density plots corroborate what we saw with the histograms.
+
+
+```{r}
+# Boxplot
+gbpm <- ggplot(comb_data)
+gbpm + geom_boxplot(aes(x = address, y = G3_math, fill = address)) + scale_fill_manual(values=c("#E69F00", "#56B4E9")) + xlab("Score on Final Math Exam, G3") + ylab("Exam Score") + ggtitle(str_wrap("Box Plot of Student Scores on Final Math Exam, by Address",45)) + theme(plot.title = element_text(hjust = 0.5))
+
+gbpp <- ggplot(comb_data)
+gbpp + geom_boxplot(aes(x = address, y = G3_port, fill = address)) + scale_fill_manual(values=c("#E69F00", "#56B4E9")) + xlab("Score on Final Portuguese Exam, G3") + ylab("Exam Score") + ggtitle(str_wrap("Box Plot of Student Scores on Final Portuguese Exam, by Address",45)) + theme(plot.title = element_text(hjust = 0.5))
+
+#comb_data_subset2 <- comb_data |> select(address, G3_math, G3_port)
+
+#gbp <- ggplot(comb_data_subset2) +
+#  geom_boxplot(aes(x = address, y = G3_math, fill = address)) +
+#  geom_boxplot(aes(x = address, y = G3_port, fill = address), alpha = 0.5)
+#gbp
+
+#gbp <- ggplot(comb_data, aes(x=address, y=c(G3_math,G3_port), fill=address)) + 
+#    geom_boxplot(alpha=0.3) +
+#    theme(legend.position="none") +
+#    scale_fill_brewer(palette="BuPu")
+#gbp
+```
+The math boxplots indicate a wider IQR for urban students than for rural students.  The median scores are similar, and there were students who reside in both areas that scored 0.  The 0 scores were outliers; the maximum score for the rural students was also an outlier.  The Portuguese boxplots indicate a narrower IQR for the urban students but a noticeably higher performance than with the rural students.
+
+
+* Create two scatterplots relating a G3 variable to other numeric variables (put G3 on the y-axis). You
+should jitter the points if they sit on top of each other. Color the points by a categorical variable in
+each. Add appropriate labels and titles.
+
+```{r}
+g1 <- ggplot(comb_data |> drop_na(age, G3_math, address),
+ aes(x = age, y = G3_math, color = address))
+g1 + geom_point() +
+ scale_color_manual(values=c("#E69F00", "#56B4E9")) +
+ geom_jitter(width = 0.2, alpha = 0.3)
+
+g2 <- ggplot(comb_data |> drop_na(age, G3_math, address),
+ aes(x = absences_math, y = G3_math, color = address))
+g2 + geom_point() + 
+ scale_color_manual(values=c("#E69F00", "#56B4E9")) +
+ geom_jitter(width = 0.2, alpha = 0.3)
+
+```
+The highest score is attained by 16 year olds, with students up to the age of 22 being enrolled.  However, the spread in scores is higher for younger students.  Most students missed under 30 math classes.  Several urban students missed more than 50 classes, while one of the rural students missed more than 70 classes.  The students who performed best did not miss the fewest classes, though lower scores were associated with increased absences (except in the case of students who scored 0 on the exam).  The 0 scores, with 0 absences, could indicate something wrong with the attendance accounting for the course.  Comparing with an above table, we see that some of the students who scored 0 also scored 0 on the second exam, but above 0 on the first exam.
+
+
+* Now, we will repeat the scatter plot step but use faceting to obtain graphs at each setting of `Medu`.
+
+```{r}
+g1 <- ggplot(comb_data |> drop_na(age, G3_math, Medu),
+ aes(x = age, y = G3_math, color = Medu))
+g1 + geom_point() +
+ geom_jitter(width = 0.2, alpha = 0.3) +
+ facet_wrap(~ Medu)
+
+g2 <- ggplot(comb_data |> drop_na(age, G3_math, Medu),
+ aes(x = absences_math, y = G3_math, color = Medu))
+g2 + geom_point() +
+ geom_jitter(width = 0.2, alpha = 0.3) + 
+ facet_wrap(~ Medu)
+```
+The students with the highest scores all have mothers who, at a minimum, completed 5th to 9th grade.  We can see that most students have fewer than 20 absences from math class.  The outlier absences, noted above, appear in the scatter plot of G3 math scores versus absences from math class for students whose mothers completed secondary education.  To infer anything relationship from this, however, would be highly dubious.
+
+
+* Finally, we will repeat the scatter plot step but use faceting to obtain graphs at each combination of `address` and `Medu`.
+
+```{r}
+g1 <- ggplot(comb_data |> drop_na(age, G3_math, address, Medu),
+ aes(x = age, y = G3_math, color = address))
+g1 + geom_point() +
+ geom_jitter(width = 0.2, alpha = 0.3) + 
+ scale_color_manual(values=c("#E69F00", "#56B4E9")) +
+ facet_wrap(Medu ~ address)
+
+g2 <- ggplot(comb_data |> drop_na(absences_math, G3_math, address, Medu),
+ aes(x = absences_math, y = G3_math, color = address))
+g2 + geom_point() +
+ geom_jitter(width = 0.2, alpha = 0.3) + 
+ scale_color_manual(values=c("#E69F00", "#56B4E9")) +
+ facet_wrap(Medu ~ address)
+ 
+```
+The urban students whose mothers completed less education tended to have better scores on the math exam than their rural counterparts.  As the mothers' levels of education increased, the test scores did as well, and younger urban students slightly outperformed their older counterparts, which was opposite to the rural students.  Also, the higher the education level completed by the mothers, the less that absences impacted the exam scores.
+
+
